@@ -1,11 +1,19 @@
 #!/bin/bash
 
+set -e
+
 cd $(dirname $0)
 
-export PYTHONPATH=src:tests
+function run()
+{
+    echo
+    echo "Running tests for Python version $PYENV_VERSION"
+    echo
+    ./runTestsForPyVersion.sh
+    echo
+    echo "Finished tests for Python version $PYENV_VERSION"
+    echo
+}
 
-if [ -z "$1" ]; then
-    python3 -m unittest tests/*.py
-else
-    python3 -m unittest "$@"
-fi
+PYENV_VERSION=3.8.6 run
+PYENV_VERSION=3.9.0 run

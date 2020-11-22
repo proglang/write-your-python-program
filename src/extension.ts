@@ -7,6 +7,7 @@ import * as path from 'path';
 
 const extensionId = 'write-your-python-program';
 const python3ConfigKey = 'python3Cmd';
+const verboseConfigKey = 'verbose'
 const isWindows = process.platform === "win32";
 const exeExt = isWindows ? ".exe" : "";
 
@@ -106,10 +107,10 @@ type PythonCmdResult = {
 };
 
 function getPythonCmd(): PythonCmdResult {
-    const config = vscode.workspace.getConfiguration()[extensionId];
-    let pythonCmd = isWindows ? ('python' + exeExt) : 'python3';
+    const config = vscode.workspace.getConfiguration(extensionId);
     const hasConfig = config && config[python3ConfigKey];
     if (hasConfig) {
+        // explicitly configured for wypp (should we deprecate this?)
         let configCmd: string= config[python3ConfigKey];
         configCmd = configCmd.trim();
         if (isWindows && !configCmd.endsWith(exeExt)) {
@@ -127,11 +128,44 @@ function getPythonCmd(): PythonCmdResult {
                     msg: "Path " + configCmd + " does not exist."
                 };
             }
-
+        } else {
+            return { kind: 'success', cmd: configCmd };
         }
-        pythonCmd = configCmd;
+    } else {
+        const pyConfig = vscode.workspace.getConfiguration("python");
+        const pyExtPyPath: string | undefined = pyConfig.get("pythonPath");
+        if (pyExtPyPath) {
+            return {
+                kind: 'success',
+                cmd: pyExtPyPath
+            };
+        } else {
+            const pythonCmd = isWindows ? ('python' + exeExt) : 'python3';
+            return {
+                kind: 'success',
+                cmd: pythonCmd
+            };
+        }
     }
-    return { kind: 'success', cmd: pythonCmd };
+}
+
+function beVerbose(context: vscode.ExtensionContext): boolean {
+    const config = vscode.workspace.getConfiguration(extensionId);
+    return !!config[verboseConfigKey];
+}
+
+function fixPythonConfig(context: vscode.ExtensionContext) {
+    const libDir = context.asAbsolutePath('python/src/');
+    const pyComplConfig = vscode.workspace.getConfiguration("python.autoComplete");
+    const oldPath: string[] = pyComplConfig.get("extraPaths") || [];
+    const newPath = oldPath.slice();
+    if (!newPath.includes(libDir)) {
+        newPath.push(libDir);
+    }
+    pyComplConfig.update("extraPaths", newPath);
+
+    const pyLintConfig = vscode.workspace.getConfiguration("python.linting");
+    pyLintConfig.update("enabled", false);
 }
 
 // this method is called when your extension is activated
@@ -141,6 +175,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     console.log('Activating extension ' + extensionId);
 
+    fixPythonConfig(context);
     const terminals: { [name: string]: vscode.Terminal } = {};
 
     installButton("Write Your Python Program", undefined);
@@ -166,13 +201,14 @@ export function activate(context: vscode.ExtensionContext) {
             }
             vscode.window.activeTextEditor?.document.save();
             const pyCmd = getPythonCmd();
+            const verboseOpt = beVerbose(context) ? " --verbose" : "";
             if (pyCmd.kind !== "error") {
                 const pythonCmd = fileToCommandArgument(pyCmd.cmd);
                 terminals[cmdId] = startTerminal(
                     terminals[cmdId],
                     "WYPP - RUN",
-                    pythonCmd + " -i " + fileToCommandArgument(runProg) +
-                    " " + fileToCommandArgument(file)
+                    pythonCmd + " -i " + fileToCommandArgument(runProg) + verboseOpt +
+                        " " + fileToCommandArgument(file)
                 );
                 if (pyCmd.kind === "warning") {
                     vscode.window.showInformationMessage(pyCmd.msg);
