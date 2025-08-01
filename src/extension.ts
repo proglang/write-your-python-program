@@ -6,6 +6,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Uri } from 'vscode';
 
+import { getProgFlowVizCallback } from './programflow-visualization/main';
+import { initTraceCache } from './programflow-visualization/trace_cache';
+
 const extensionId = 'write-your-python-program';
 const python3ConfigKey = 'python3Cmd';
 const verboseConfigKey = 'verbose';
@@ -20,7 +23,6 @@ const buttons: vscode.StatusBarItem[] = [];
 function installButton(title: string, cmd: string | undefined) {
     const runButton = vscode.window.createStatusBarItem(1, 0);
     runButton.text = title;
-    runButton.color = 'white';
     if (cmd) {
         runButton.command = cmd;
     }
@@ -40,43 +42,6 @@ function showButtons() {
     });
 }
 
-function getTerminalConfig(): {shellPath: string | undefined, shellArgs: string | string[] | undefined} {
-    const shellConfig = vscode.workspace.getConfiguration('terminal.integrated.shell');
-    const shellArgsConfig = vscode.workspace.getConfiguration('terminal.integrated.shellArgs');
-    let osSection: string | undefined;
-    if (process.platform === "win32") {
-        osSection = 'windows';
-    } else if (process.platform === "darwin") {
-        osSection = 'osx';
-    } else if (process.platform === "linux") {
-        osSection = 'linux';
-    }
-    if (osSection) {
-        return {
-            shellPath: shellConfig.get<string>(osSection) || undefined,
-            shellArgs: shellArgsConfig.get<string | string[]>(osSection) || undefined
-        };
-    } else {
-        return {
-            shellPath: undefined,
-            shellArgs: undefined
-        };
-    }
-}
-
-const POWERSHELLS = [/(powershell.exe$|powershell$)/i, /(pwsh.exe$|pwsh$)/i];
-
-type ShellKind = 'powershell' | 'other';
-
-function identifyShell(shellPath: string): ShellKind {
-    for (let pat of POWERSHELLS) {
-        if (pat.test(shellPath)) {
-            return 'powershell';
-        }
-    }
-    return 'other';
-}
-
 async function startTerminal(
     existing: vscode.Terminal | undefined, name: string, cmd: string
 ): Promise<vscode.Terminal> {
@@ -84,29 +49,18 @@ async function startTerminal(
         existing.dispose();
     }
     const terminalOptions: vscode.TerminalOptions = {name: name};
-    let cmdPrefix = "";
     if (isWindows) {
-        const shellCfg = getTerminalConfig();
-        const shellPath = shellCfg.shellPath;
-        const shellArgs = shellCfg.shellArgs;
-        if (shellPath) {
-            terminalOptions.shellPath = shellPath;
-            if (shellArgs) {
-                terminalOptions.shellArgs = shellArgs;
-            }
-            if (identifyShell(shellPath) === "powershell") {
-                cmdPrefix = "& ";
-            }
-        } else {
-            // powershell is the default
-            cmdPrefix = "& ";
-        }
+        // We don't know which shell will be used by default.
+        // If PowerShell is the default, we need to prefix the command with "& ".
+        // Otherwise, the prefix is not allowed and results in a syntax error.
+        // -> Just force cmd.exe.
+        terminalOptions.shellPath = "cmd.exe";
     }
     const terminal = vscode.window.createTerminal(terminalOptions);
     // Sometimes the terminal takes some time to start up before it can start accepting input.
     await new Promise((resolve) => setTimeout(resolve, 100));
     terminal.show(false); // focus the terminal
-    terminal.sendText(cmdPrefix + cmd);
+    terminal.sendText(cmd);
     return terminal;
 }
 
@@ -175,6 +129,15 @@ function installCmd(
     installButton(buttonTitle, cmdId);
 }
 
+function initProgramFlowVisualization(context: vscode.ExtensionContext, outChannel: vscode.OutputChannel) {
+    initTraceCache(context);
+    const cmdId = extensionId + ".programflow-visualization";
+    let disposable = vscode.commands.registerCommand(cmdId, getProgFlowVizCallback(context, outChannel));
+    disposables.push(disposable);
+    context.subscriptions.push(disposable);
+    installButton("$(debug-alt-small) Visualize", cmdId);
+}
+
 type PythonCmdResult = {
     kind: "success", cmd: string[]
 } | {
@@ -183,7 +146,7 @@ type PythonCmdResult = {
     kind: "warning", msg: string, cmd: string[]
 };
 
-function getPythonCmd(ext: PythonExtension): PythonCmdResult {
+export function getPythonCmd(ext: PythonExtension): PythonCmdResult {
     const config = vscode.workspace.getConfiguration(extensionId);
     const hasConfig = config && config[python3ConfigKey];
     if (hasConfig) {
@@ -266,8 +229,8 @@ function fixPythonConfig(context: vscode.ExtensionContext) {
     }
     pyComplConfig.update("extraPaths", newPath);
 
-    const pyLintConfig = vscode.workspace.getConfiguration("python.linting");
-    pyLintConfig.update("enabled", false);
+    // const pyLintConfig = vscode.workspace.getConfiguration("python.linting");
+    // pyLintConfig.update("enabled", false);
 }
 
 class Location implements vscode.TerminalLink {
@@ -351,7 +314,7 @@ class TerminalLinkProvider implements vscode.TerminalLinkProvider {
 	}
 }
 
-class PythonExtension {
+export class PythonExtension {
     private pyApi: any;
 
     constructor() {
@@ -370,6 +333,9 @@ export function activate(context: vscode.ExtensionContext) {
     disposables.forEach(d => d.dispose());
 
     console.log('Activating extension ' + extensionId);
+
+    const outChannel = vscode.window.createOutputChannel("Write Your Python Program");
+    disposables.push(outChannel);
 
     fixPythonConfig(context);
     const terminals: { [name: string]: TerminalContext } = {};
@@ -398,7 +364,7 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showWarningMessage('Not a python file');
                 return;
             }
-            vscode.window.activeTextEditor?.document.save();
+            await vscode.window.activeTextEditor?.document.save();
             const pyCmd = getPythonCmd(pyExt);
             let verboseOpt = "";
             if (isDebug(context)) {
@@ -431,6 +397,8 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }
     );
+
+    initProgramFlowVisualization(context, outChannel);
 
     vscode.window.onDidChangeActiveTextEditor(showHideButtons);
     showHideButtons(vscode.window.activeTextEditor);

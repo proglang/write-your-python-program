@@ -1,0 +1,344 @@
+[
+	{
+		"line": 1,
+		"filePath": "factorial.py",
+		"stack": [
+			{
+				"frameName": "<module>",
+				"locals": []
+			}
+		],
+		"heap": {},
+		"stdout": ""
+	},
+	{
+		"line": 8,
+		"filePath": "factorial.py",
+		"stack": [
+			{
+				"frameName": "<module>",
+				"locals": [
+					{
+						"type": "function",
+						"value": "<function factorical>",
+						"name": "factorical"
+					}
+				]
+			}
+		],
+		"heap": {},
+		"stdout": ""
+	},
+	{
+		"line": 2,
+		"filePath": "factorial.py",
+		"stack": [
+			{
+				"frameName": "<module>",
+				"locals": [
+					{
+						"type": "function",
+						"value": "<function factorical>",
+						"name": "factorical"
+					}
+				]
+			},
+			{
+				"frameName": "factorical",
+				"locals": [
+					{
+						"type": "int",
+						"value": 2,
+						"name": "n"
+					}
+				]
+			}
+		],
+		"heap": {},
+		"stdout": ""
+	},
+	{
+		"line": 4,
+		"filePath": "factorial.py",
+		"stack": [
+			{
+				"frameName": "<module>",
+				"locals": [
+					{
+						"type": "function",
+						"value": "<function factorical>",
+						"name": "factorical"
+					}
+				]
+			},
+			{
+				"frameName": "factorical",
+				"locals": [
+					{
+						"type": "int",
+						"value": 2,
+						"name": "n"
+					}
+				]
+			}
+		],
+		"heap": {},
+		"stdout": ""
+	},
+	{
+		"line": 2,
+		"filePath": "factorial.py",
+		"stack": [
+			{
+				"frameName": "<module>",
+				"locals": [
+					{
+						"type": "function",
+						"value": "<function factorical>",
+						"name": "factorical"
+					}
+				]
+			},
+			{
+				"frameName": "factorical",
+				"locals": [
+					{
+						"type": "int",
+						"value": 2,
+						"name": "n"
+					}
+				]
+			},
+			{
+				"frameName": "factorical",
+				"locals": [
+					{
+						"type": "int",
+						"value": 1,
+						"name": "n"
+					}
+				]
+			}
+		],
+		"heap": {},
+		"stdout": ""
+	},
+	{
+		"line": 3,
+		"filePath": "factorial.py",
+		"stack": [
+			{
+				"frameName": "<module>",
+				"locals": [
+					{
+						"type": "function",
+						"value": "<function factorical>",
+						"name": "factorical"
+					}
+				]
+			},
+			{
+				"frameName": "factorical",
+				"locals": [
+					{
+						"type": "int",
+						"value": 2,
+						"name": "n"
+					}
+				]
+			},
+			{
+				"frameName": "factorical",
+				"locals": [
+					{
+						"type": "int",
+						"value": 1,
+						"name": "n"
+					}
+				]
+			}
+		],
+		"heap": {},
+		"stdout": ""
+	},
+	{
+		"line": 3,
+		"filePath": "factorial.py",
+		"stack": [
+			{
+				"frameName": "<module>",
+				"locals": [
+					{
+						"type": "function",
+						"value": "<function factorical>",
+						"name": "factorical"
+					}
+				]
+			},
+			{
+				"frameName": "factorical",
+				"locals": [
+					{
+						"type": "int",
+						"value": 2,
+						"name": "n"
+					}
+				]
+			},
+			{
+				"frameName": "factorical",
+				"locals": [
+					{
+						"type": "int",
+						"value": 1,
+						"name": "n"
+					},
+					{
+						"type": "int",
+						"value": 1,
+						"name": "return"
+					}
+				]
+			}
+		],
+		"heap": {},
+		"stdout": ""
+	},
+	{
+		"line": 5,
+		"filePath": "factorial.py",
+		"stack": [
+			{
+				"frameName": "<module>",
+				"locals": [
+					{
+						"type": "function",
+						"value": "<function factorical>",
+						"name": "factorical"
+					}
+				]
+			},
+			{
+				"frameName": "factorical",
+				"locals": [
+					{
+						"type": "int",
+						"value": 2,
+						"name": "n"
+					},
+					{
+						"type": "int",
+						"value": 1,
+						"name": "prev"
+					}
+				]
+			}
+		],
+		"heap": {},
+		"stdout": ""
+	},
+	{
+		"line": 6,
+		"filePath": "factorial.py",
+		"stack": [
+			{
+				"frameName": "<module>",
+				"locals": [
+					{
+						"type": "function",
+						"value": "<function factorical>",
+						"name": "factorical"
+					}
+				]
+			},
+			{
+				"frameName": "factorical",
+				"locals": [
+					{
+						"type": "int",
+						"value": 2,
+						"name": "n"
+					},
+					{
+						"type": "int",
+						"value": 1,
+						"name": "prev"
+					},
+					{
+						"type": "int",
+						"value": 2,
+						"name": "a"
+					}
+				]
+			}
+		],
+		"heap": {},
+		"stdout": ""
+	},
+	{
+		"line": 6,
+		"filePath": "factorial.py",
+		"stack": [
+			{
+				"frameName": "<module>",
+				"locals": [
+					{
+						"type": "function",
+						"value": "<function factorical>",
+						"name": "factorical"
+					}
+				]
+			},
+			{
+				"frameName": "factorical",
+				"locals": [
+					{
+						"type": "int",
+						"value": 2,
+						"name": "n"
+					},
+					{
+						"type": "int",
+						"value": 1,
+						"name": "prev"
+					},
+					{
+						"type": "int",
+						"value": 2,
+						"name": "a"
+					},
+					{
+						"type": "int",
+						"value": 2,
+						"name": "return"
+					}
+				]
+			}
+		],
+		"heap": {},
+		"stdout": ""
+	},
+	{
+		"line": 10,
+		"filePath": "factorial.py",
+		"stack": [
+			{
+				"frameName": "<module>",
+				"locals": [
+					{
+						"type": "function",
+						"value": "<function factorical>",
+						"name": "factorical"
+					},
+					{
+						"type": "int",
+						"value": 2,
+						"name": "res1"
+					}
+				]
+			}
+		],
+		"heap": {},
+		"stdout": ""
+	}
+]

@@ -1,4 +1,3 @@
-from __future__ import annotations as anns
 import sys
 import os
 import os.path
@@ -45,6 +44,7 @@ FILES_TO_INSTALL = ['writeYourProgram.py', 'drawingLib.py', '__init__.py']
 
 UNTYPY_DIR = os.path.join(LIB_DIR, "..", "deps", "untypy", "untypy")
 UNTYPY_MODULE_NAME = 'untypy'
+SITELIB_DIR = os.path.join(LIB_DIR, "..", "site-lib")
 
 def verbose(s):
     if VERBOSE or DEBUG:
@@ -89,6 +89,10 @@ def parseCmdlineArgs(argList):
                         const=True, default=False, help='Do not clear the terminal')
     parser.add_argument('--test-file', dest='testFile',
                         type=str, help='Run additional tests contained in this file.')
+    parser.add_argument('--extra-dir', dest='extraDirs', action='append', type=str,
+                        help='Also typechecks files contained in the given directory.\n' \
+                            'By default, only files in the same directory as the main file are\n' \
+                            'checked.')
     parser.add_argument('--change-directory', dest='changeDir', action='store_const',
                         const=True, default=False,
                         help='Change to the directory of FILE before running')
@@ -250,7 +254,7 @@ class Lib:
                 if name and name[0] != '_':
                   d[name] = getattr(mod, name)
 
-def prepareLib(onlyCheckRunnable):
+def prepareLib(onlyCheckRunnable, enableTypeChecking):
     libDefs = None
     mod = INSTALLED_MODULE_NAME
     verbose('Attempting to import ' + mod)
@@ -258,6 +262,7 @@ def prepareLib(onlyCheckRunnable):
     libDefs = Lib(wypp, True)
     verbose('Successfully imported module ' + mod + ' from file ' + wypp.__file__)
     libDefs.initModule(enableChecks=not onlyCheckRunnable,
+                       enableTypeChecking=enableTypeChecking,
                        quiet=onlyCheckRunnable)
     return libDefs
 
@@ -308,15 +313,17 @@ class RunSetup:
             sys.path.remove(self.sysPath)
             self.sysPathInserted = False
 
-def runCode(fileToRun, globals, args, useUntypy=True):
+def runCode(fileToRun, globals, args, useUntypy=True, extraDirs=None):
+    if not extraDirs:
+        extraDirs = []
     localDir = os.path.dirname(fileToRun)
 
     with RunSetup(localDir):
         codeTxt = readFile(fileToRun)
-        flags = 0 | anns.compiler_flag
+        flags = 0
         if useUntypy:
             verbose(f'finding modules imported by {fileToRun}')
-            importedMods = findImportedModules([localDir], fileToRun)
+            importedMods = findImportedModules([localDir] + extraDirs, fileToRun)
             verbose('finished finding modules, now installing import hook on ' + repr(importedMods))
             untypy.enableDebug(DEBUG)
             untypy.just_install_hook(importedMods + ['__wypp__'])
@@ -336,8 +343,8 @@ def runCode(fileToRun, globals, args, useUntypy=True):
         finally:
             sys.argv = oldArgs
 
-def runStudentCode(fileToRun, globals, onlyCheckRunnable, args, useUntypy=True):
-    doRun = lambda: runCode(fileToRun, globals, args, useUntypy=useUntypy)
+def runStudentCode(fileToRun, globals, onlyCheckRunnable, args, useUntypy=True, extraDirs=None):
+    doRun = lambda: runCode(fileToRun, globals, args, useUntypy=useUntypy, extraDirs=extraDirs)
     if onlyCheckRunnable:
         try:
             doRun()
@@ -349,26 +356,27 @@ def runStudentCode(fileToRun, globals, onlyCheckRunnable, args, useUntypy=True):
     doRun()
 
 # globals already contain libDefs
-def runTestsInFile(testFile, globals, libDefs, useUntypy=True):
+def runTestsInFile(testFile, globals, libDefs, useUntypy=True, extraDirs=[]):
     printStderr()
     printStderr(f"Running tutor's tests in {testFile}")
     libDefs.resetTestCount()
     try:
-        runCode(testFile, globals, [], useUntypy=useUntypy)
+        runCode(testFile, globals, [], useUntypy=useUntypy, extraDirs=extraDirs)
     except:
         handleCurrentException()
     return libDefs.dict['printTestResults']('Tutor:  ')
 
 # globals already contain libDefs
-def performChecks(check, testFile, globals, libDefs, useUntypy=True):
+def performChecks(check, testFile, globals, libDefs, useUntypy=True, extraDirs=None, loadingFailed=False):
     prefix = ''
     if check and testFile:
         prefix = 'Student: '
-    testResultsStudent = libDefs.printTestResults(prefix)
+    testResultsStudent = libDefs.printTestResults(prefix, loadingFailed)
     if check:
         testResultsInstr = {'total': 0, 'failing': 0}
         if testFile:
-            testResultsInstr = runTestsInFile(testFile, globals, libDefs, useUntypy=useUntypy)
+            testResultsInstr = runTestsInFile(testFile, globals, libDefs, useUntypy=useUntypy,
+                                              extraDirs=extraDirs)
         failingSum = testResultsStudent['failing'] + testResultsInstr['failing']
         die(0 if failingSum < 1 else 1)
 
@@ -395,26 +403,37 @@ def tbToFrameList(tb):
         cur = cur.tb_next
     return res
 
-def ignoreFrame(frame):
-    if DEBUG:
-        return False
+def isWyppFrame(frame):
     modName = frame.f_globals["__name__"]
     return '__wypp_runYourProgram' in frame.f_globals or \
         modName == 'untypy' or modName.startswith('untypy.') or \
         modName == 'wypp' or modName.startswith('wypp.')
 
+def ignoreFrame(frame):
+    if DEBUG:
+        return False
+    return isWyppFrame(frame)
+
 # Returns a StackSummary object
-def limitTraceback(tb):
-    frames = [(f, f.f_lineno) for f in tbToFrameList(tb) if not ignoreFrame(f)]
+def limitTraceback(frameList, isBug):
+    frames = [(f, f.f_lineno) for f in frameList if isBug or not ignoreFrame(f)]
     return traceback.StackSummary.extract(frames)
 
 def handleCurrentException(exit=True, removeFirstTb=False, file=sys.stderr):
     (etype, val, tb) = sys.exc_info()
     if isinstance(val, SystemExit):
         die(val.code)
-    if tb and removeFirstTb:
-        tb = tb.tb_next
-    stackSummary = limitTraceback(tb)
+    frameList = tbToFrameList(tb)
+    if frameList and removeFirstTb:
+        frameList = frameList[1:]
+    if frameList and getattr(val, '__wrapped__', False):
+        # We remove the stack frame of the wrapper
+        frameList = frameList[:-1]
+    isWyppError = isinstance(val, untypy.error.UntypyError)
+    isBug = not isWyppError and not isinstance(val, SyntaxError) and \
+        not isinstance(val, untypy.error.DeliberateError) and frameList \
+        and isWyppFrame(frameList[-1])
+    stackSummary = limitTraceback(frameList, isBug)
     header = False
     for x in stackSummary.format():
         if not header:
@@ -432,6 +451,8 @@ def handleCurrentException(exit=True, removeFirstTb=False, file=sys.stderr):
     else:
         for x in traceback.format_exception_only(etype, val):
             file.write(x)
+    if isBug:
+        file.write(f'BUG: the error above is most likely a bug in WYPP!')
     if exit:
         die(1)
 
@@ -456,10 +477,12 @@ def importUntypy():
         printStderr(f"Module untypy not found, sys.path={sys.path}: {e}")
         die(1)
 
+requiredVersion = (3, 12, 0)
 def versionOk(v):
-    if v.major < 3 or v.minor < 9:
+    (reqMajor, reqMinor, reqMicro) = requiredVersion
+    if v.major < reqMajor or v.minor < reqMinor:
         return False
-    if v.major == 3 and v.minor == 9 and v.micro < 2:
+    if v.major == reqMajor and v.minor == reqMinor and v.micro < reqMicro:
         return False
     else:
         return True
@@ -468,8 +491,9 @@ def main(globals, argList=None):
     v = sys.version_info
     if not versionOk(v):
         vStr = sys.version.split()[0]
+        reqVStr = '.'.join([str(x) for x in requiredVersion])
         print(f"""
-Python in version 3.9.2 or newer is required. You are still using version {vStr}, please upgrade!
+Python in version {reqVStr} or newer is required. You are still using version {vStr}, please upgrade!
 """)
         sys.exit(1)
 
@@ -484,12 +508,16 @@ Python in version 3.9.2 or newer is required. You are still using version {vStr}
     verbose(f'VERBOSE={VERBOSE}, DEBUG={DEBUG}')
 
     installLib(args.installMode)
-    if site.USER_SITE not in sys.path:
-        if not site.ENABLE_USER_SITE:
-            printStderr(f"User site-packages disabled ({site.USER_SITE}. This might cause problems importing wypp or untypy.")
-        else:
-            verbose(f"Adding user site-package directory {site.USER_SITE} to sys.path")
-            sys.path.append(site.USER_SITE)
+    if args.installMode == InstallMode.dontInstall:
+        if SITELIB_DIR not in sys.path:
+            sys.path.insert(0, SITELIB_DIR)
+    else:
+        if site.USER_SITE not in sys.path:
+            if not site.ENABLE_USER_SITE:
+                printStderr(f"User site-packages disabled ({site.USER_SITE}. This might cause problems importing wypp or untypy.")
+            else:
+                verbose(f"Adding user site-package directory {site.USER_SITE} to sys.path")
+                sys.path.append(site.USER_SITE)
     importUntypy()
 
     fileToRun = args.file
@@ -507,7 +535,7 @@ Python in version 3.9.2 or newer is required. You are still using version {vStr}
     if not args.checkRunnable and (not args.quiet or args.verbose):
         printWelcomeString(fileToRun, version, useUntypy=args.checkTypes)
 
-    libDefs = prepareLib(onlyCheckRunnable=args.checkRunnable)
+    libDefs = prepareLib(onlyCheckRunnable=args.checkRunnable, enableTypeChecking=args.checkTypes)
 
     globals['__name__'] = '__wypp__'
     sys.modules['__wypp__'] = sys.modules['__main__']
@@ -516,13 +544,14 @@ Python in version 3.9.2 or newer is required. You are still using version {vStr}
         verbose(f'running code in {fileToRun}')
         globals['__file__'] = fileToRun
         runStudentCode(fileToRun, globals, args.checkRunnable, restArgs,
-                       useUntypy=args.checkTypes)
+                       useUntypy=args.checkTypes, extraDirs=args.extraDirs)
     except Exception as e:
-        verbose(e)
+        verbose(f'Error while running code in {fileToRun}: {e}')
         handleCurrentException(exit=not isInteractive)
         loadingFailed = True
 
-    performChecks(args.check, args.testFile, globals, libDefs, useUntypy=args.checkTypes)
+    performChecks(args.check, args.testFile, globals, libDefs, useUntypy=args.checkTypes,
+                  extraDirs=args.extraDirs, loadingFailed=loadingFailed)
 
     if isInteractive:
         enterInteractive(globals)

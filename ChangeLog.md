@@ -1,6 +1,27 @@
 # Write Your Python Program - CHANGELOG
 
-* 1.0.3
+* 1.3.0 (2024-12-01)
+  * Fix bug with union of unions
+  * Improve scrolling #148
+  * Improve highlighting of current line #155
+  * Improve rendering of classes and functions #154
+  * Several other bugfixes
+* 1.2.1 (2024-11-05)
+  * Fix assets for visualization
+* 1.2.0 (2024-11-04)
+  * Support for visualization
+  * Fix handling of lazy annotations in records
+  * Fix output of execution fails but some tests were successful
+* 1.1.0 (2024-10-02)
+  * Improve invocation on windows, always use cmd.exe
+  * Fixed bugs #132, #133, #134, and #135
+* 1.0.6 (2023-09-18)
+  * Run button is now visible with every color theme
+* 1.0.5 (2023-03-29)
+  * Fix bug with properties
+* 1.0.4 (2022-12-14)
+  * Fix release
+* 1.0.3 (2022-12-14)
   * Start interactive mode even on exception
   * Improve error messages
 * 1.0.2 (2022-11-09)

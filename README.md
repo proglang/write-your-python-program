@@ -10,24 +10,19 @@ The ideas of this environment are based on the great ideas from
 
 ## Quick start
 
-* Step 1. Install **Python 3.9.x** (with x at least 2) or **Python 3.10.x.**.
-  Note that Python 3.9.0 and 3.9.1 are not supported.
-* Step 2. Install the **write-your-python-program** extension. You need at least Visual Studio Code
-  version 1.49.0.
+* Step 1. Install **Python 3.12.x** or **Python 3.13.x**.
+* Step 2. Install Visual Studio Code, at least version Version: 1.94.2
+* Step 2. Install the **write-your-python-program** extension for Visual Studio Code.
 * Step 3. Open or create a Python file. The "RUN" button in the taskbar at the bottom will
   run your file with the teaching language provided by write-your-python-program.
 
 ### Troubleshooting
 
 - By default, the Visual Studio Code extension uses the Python interpreter of the regular
-  Python extension. If
-  this is not Python version 3.9.x, you have to configure it explicitly. Configuration
+  Python extension, but you may also configure it explicitly. Configuration
   can be done either by selecting the desired Python version in the left corner of the status
   bar (at the bottom of the window), or by setting the path the the python
   executable in the settings of the plugin.
-- The extension disables linting of Python code when activated. This is well-suited for beginners
-  but might cause unwanted effects when you rely on linting. In such cases, you have to
-  deactivate the extension.
 
 ### Usage without Visual Studio Code
 
@@ -37,7 +32,7 @@ Write Your Python Program can be installed outside of Visual Studio Code via pip
 pip3 install wypp
 ```
 
-This needs Python 3.9.x. After installation, you can use the `wypp` command
+After installation, you can use the `wypp` command
 for running your python files, making all features explained below available.
 Run `wypp --help` for usage information.
 
@@ -83,7 +78,7 @@ its type hint or when a function returns a value not matching the return type hi
 #### Enums
 
 ~~~python
-Color = Literal['red', 'green', 'blue']
+type Color = Literal['red', 'green', 'blue']
 ~~~
 
 #### Records
@@ -117,14 +112,14 @@ Fields of records are immutable by default. You get mutable fields with `@record
 #### Mixed Data Types
 
 ~~~python
-PrimitiveShape = Union[Circle, Square]
+type PrimitiveShape = Union[Circle, Square]
 ~~~
 
 To use recursive types, you need to write a forward reference to the yet undefined type
 as a string:
 
 ~~~python
-Shape = Union[Circle, Square, 'Overlay']
+type Shape = Union[Circle, Square, 'Overlay']
 
 @record
 class Overlay:
@@ -192,8 +187,8 @@ predefined types:
 * `nat`
 
 The code is run with `from __future__ import annotations`
-(see [PEP 563](https://www.python.org/dev/peps/pep-0563/)), which will be
-the default from python 3.10 on. This means that you can use a type as an annotation
+(see [PEP 563](https://www.python.org/dev/peps/pep-0563/)).
+This means that you can use a type as an annotation
 before the type being defined, for example to define recursive types or as
 the type of `self` inside of classes. In fact, there is no check at all to make sure
 that anotations refer to existing types.
@@ -246,6 +241,8 @@ Please report them in the [issue tracker](https://github.com/skogsbaer/write-you
 
 You can debug the extension from Visual Studio Code:
 
+* `npm install`
+* `npm run build`
 * Open the main folder of the plugin with vscode.
 * Open the file `extension.ts`.
 * Choose "Run" from the menu, then "Start Debugging".

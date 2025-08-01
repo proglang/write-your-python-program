@@ -66,7 +66,6 @@ def _literalInstanceOf(self, value):
     return False
 
 def _invalidCall(self, *args, **kwds):
-    argStr = ', '.join([untypy.util.typehints.qualname(x) for x in args])
     if hasattr(self, '__name__'):
         name = self.__name__
     else:
@@ -74,7 +73,13 @@ def _invalidCall(self, *args, **kwds):
         typingPrefix = 'typing.'
         if name.startswith(typingPrefix):
             name = name[len(typingPrefix):]
-    raise TypeError(f"Cannot instantiate {name}. Did you mean {name}[{argStr}]?")
+    def formatArg(x):
+        if name == 'Literal':
+            return repr(x)
+        else:
+            return x
+    argStr = ', '.join([formatArg(untypy.util.typehints.qualname(x)) for x in args])
+    raise untypy.error.WyppTypeError(f"Cannot call {name} like a function. Did you mean {name}[{argStr}]?")
 
 # Dirty hack ahead: we patch some methods of internal class of the typing module.
 
@@ -129,14 +134,17 @@ def _patchDataClass(cls, mutable):
             elif k in fields:
                 oldSetattr(obj, k, v)
             else:
-                raise AttributeError(f'Unknown attribute {k} for record {cls.__name__}')
+                raise untypy.error.WyppAttributeError(f'Unknown attribute {k} for record {cls.__name__}')
         setattr(cls, "__setattr__", _setattr)
     return cls
 
 def record(cls=None, mutable=False):
     def wrap(cls):
         newCls = dataclasses.dataclass(cls, frozen=not mutable)
-        return _patchDataClass(newCls, mutable)
+        if _typeCheckingEnabled:
+            return _patchDataClass(newCls, mutable)
+        else:
+            return newCls
     # See if we're being called as @record or @record().
     if cls is None:
         # We're called with parens.
@@ -150,6 +158,7 @@ def record(cls=None, mutable=False):
 _die = False
 
 def setDieOnCheckFailures(b):
+    global _die
     _die = b
 
 def _dieOnCheckFailures():
@@ -157,54 +166,96 @@ def _dieOnCheckFailures():
 
 _testCount = {'total': 0, 'failing': 0}
 _checksEnabled = True
+_typeCheckingEnabled = False
 
-def initModule(enableChecks=True, quiet=False):
-    global _checksEnabled
+def initModule(enableChecks=True, enableTypeChecking=True, quiet=False):
+    global _checksEnabled, _typeCheckingEnabled
     _checksEnabled = enableChecks
+    _typeCheckingEnabled = enableTypeChecking
     resetTestCount()
 
 def resetTestCount():
     global _testCount
     _testCount = {'total': 0, 'failing': 0}
 
-def printTestResults(prefix=''):
+def printTestResults(prefix='', loadingFailed=False):
     total = _testCount['total']
     failing = _testCount['failing']
+    bad = '🙁'
+    good = '😀'
+    tests = f'{prefix}{total} Tests'
+    if total == 1:
+        tests = f'{prefix}{total} Test'
     if total == 0:
         pass
     elif failing == 0:
-        print(f'{prefix}{total} Tests, alle erfolgreich :-)')
+        if loadingFailed:
+            print(f'{tests}, Abbruch der Ausführung {bad}')
+        elif total == 1:
+            print(f'1 erfolgreicher Test {good}')
+        else:
+            print(f'{tests}, alle erfolgreich {good}')
     else:
-        print(f'{prefix}{total} Tests, {failing} Fehler :-(')
+        if loadingFailed:
+            print(f'{tests}, {failing} Fehler und Abbruch der Ausführung {bad}')
+        else:
+            print(f'{tests}, {failing} Fehler {bad}')
     return {'total': total, 'failing': failing}
 
 def checkEq(actual, expected):
-    return check(actual, expected, structuralObjEq=False)
+    return checkGeneric(actual, expected, structuralObjEq=False)
 
-def check(actual, expected, *, structuralObjEq=True, floatEqWithDelta=True):
-    if not _checksEnabled:
-        return
+def incTestCount(testOk: bool):
     global _testCount
-    flags = {'structuralObjEq': structuralObjEq, 'floatEqWithDelta': floatEqWithDelta}
-    matches = deepEq(actual, expected, **flags)
     _testCount = {
         'total': _testCount['total'] + 1,
-        'failing': _testCount['failing'] + (0 if matches else 1)
+        'failing': _testCount['failing'] + (0 if testOk else 1)
     }
+
+def check(actual, expected):
+    """
+    Überprüft, ob ein Funktionsaufruf das gewünschte Ergebnis liefert.
+
+    Beispiel:
+
+    `check(f(10, 'blah'), 17)` überprüft, ob der Aufruf `f(10, 'blah')` wie erwartet das Ergebnis `17` liefert.
+    """
+    checkGeneric(actual, expected)
+
+def checkGeneric(actual, expected, *, structuralObjEq=True, floatEqWithDelta=True):
+    if not _checksEnabled:
+        return
+    flags = {'structuralObjEq': structuralObjEq, 'floatEqWithDelta': floatEqWithDelta}
+    matches = deepEq(actual, expected, **flags)
+    incTestCount(matches)
     if not matches:
         stack = inspect.stack()
-        caller = stack[1] if len(stack) > 1 else None
+        frame = stack[2] if len(stack) > 2 else None
+        if frame:
+            caller = f"{frame.filename}:{frame.lineno}: "
+        else:
+            caller = ""
         def fmt(x):
             if type(x) == str:
                 return repr(x)
             else:
                 return str(x)
-        msg = f"{caller.filename}:{caller.lineno}: Erwartet wird {fmt(expected)}, aber das " \
+        msg = f"{caller}Erwartet wird {fmt(expected)}, aber das " \
             f"Ergebnis ist {fmt(actual)}"
         if _dieOnCheckFailures():
             raise Exception(msg)
         else:
             print("FEHLER in " + msg)
+
+def checkFail(msg: str):
+    if not _checksEnabled:
+        return
+    incTestCount(False)
+    msg = str(msg)
+    if _dieOnCheckFailures():
+        raise Exception(msg)
+    else:
+        print("FEHLER: " + msg)
 
 def uncoveredCase():
     stack = inspect.stack()
@@ -228,8 +279,8 @@ def _seqEq(seq1, seq2, flags):
     return True
 
 def _dictEq(d1, d2, flags):
-    ks1 = sorted(d1.keys())
-    ks2 = sorted(d2.keys())
+    ks1 = set(d1.keys())
+    ks2 = set(d2.keys())
     if ks1 != ks2: # keys should be exactly equal
         return False
     for k in ks1:
@@ -303,7 +354,7 @@ def deepEq(v1, v2, **flags):
             return False # v1 == v2 already checked
     return False
 
-class TodoError(Exception):
+class TodoError(Exception, untypy.error.DeliberateError):
     pass
 
 def todo(msg=None):
@@ -311,7 +362,7 @@ def todo(msg=None):
         msg = 'TODO'
     raise TodoError(msg)
 
-class ImpossibleError(Exception):
+class ImpossibleError(Exception, untypy.error.DeliberateError):
     pass
 
 def impossible(msg=None):

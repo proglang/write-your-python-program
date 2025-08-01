@@ -75,14 +75,15 @@ class WrapperTests(unittest.TestCase):
                      '__doc__', '__extra__', '__format__', '__getattribute__', '__init__',
                      '__init_subclass__', '__module__', '__setattr__', '__subclasshook__',
                      '__weakref__', '__wrapped__', '_DictWrapper__marker', '__setstate__',
-                     '__getstate__'
+                     '__getstate__', '__firstlineno__', '__static_attributes__'
                      ] + ignore
-        for x in dir(wrapped):
-            if x in blacklist: continue
-            m = getattr(wrapped, x)
-            if not hasattr(m, '__module__'):
-                self.fail(f'Attribute {x} not defined')
-            elif m.__module__ != expectedModule:
+        for x in dir(obj):
+            if x in blacklist:
+                continue
+            a = getattr(wrapped, x)
+            if not hasattr(a, '__module__'):
+                self.fail(f'Attribute {x} not defined. obj={obj}, a={a}, wrapped={wrapped}')
+            elif a.__module__ != expectedModule:
                 self.fail(f'Attrribute {x} not defined in {expectedModule}')
 
     def test_list_api_complete(self):
